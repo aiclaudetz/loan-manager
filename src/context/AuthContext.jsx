@@ -1,18 +1,9 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { supabase, usernameToEmail } from '../supabaseClient';
 import { useAudit } from './AuditContext';
 
 const AuthContext = createContext();
 
-const nextId = (items) => items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-
-// Mock users. In a real system this would come from a backend/database.
-const INITIAL_USERS = [
-  { id: 1, username: 'admin', password: 'admin123', fullName: 'Chief Administrator', role: 'admin', canIssueLoans: true, active: true },
-  { id: 2, username: 'meneja', password: 'meneja123', fullName: 'Loan Manager', role: 'manager', canIssueLoans: false, active: true },
-  { id: 3, username: 'ofisi1', password: 'ofisi123', fullName: 'Office Officer', role: 'officer', canIssueLoans: true, active: true },
-];
-
-// Role display names
 export const ROLE_LABELS = {
   admin: 'Administrator (Admin)',
   manager: 'Manager',
@@ -20,43 +11,107 @@ export const ROLE_LABELS = {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loginError, setLoginError] = useState('');
+  const [authLoading, setAuthLoading] = useState(true);
   const { logAction } = useAudit();
 
-  const login = (username, password) => {
-    const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password);
-    if (!user) {
+  const loadProfile = async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    if (error) return null;
+    return {
+      id: data.id,
+      username: data.username,
+      fullName: data.full_name,
+      role: data.role,
+      canIssueLoans: data.can_issue_loans,
+      active: data.active,
+    };
+  };
+
+  const loadUsers = async () => {
+    const { data } = await supabase.from('profiles').select('*').order('username');
+    if (data) {
+      setUsers(data.map(u => ({
+        id: u.id,
+        username: u.username,
+        fullName: u.full_name,
+        role: u.role,
+        canIssueLoans: u.can_issue_loans,
+        active: u.active,
+      })));
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const profile = await loadProfile(session.user.id);
+        setCurrentUser(profile);
+        if (profile) loadUsers();
+      }
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const profile = await loadProfile(session.user.id);
+        setCurrentUser(profile);
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const login = async (username, password) => {
+    const email = usernameToEmail(username);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data.user) {
       setLoginError('Incorrect username or password');
       logAction('login_failed', `Failed login attempt for username: ${username}`, null);
       return false;
     }
-    if (!user.active) {
-      setLoginError('This account has been disabled. Contact the administrator.');
-      logAction('login_failed', `Login attempt on a disabled account: ${user.username}`, user);
+
+    const profile = await loadProfile(data.user.id);
+    if (!profile) {
+      setLoginError('Account found but has no profile. Contact the administrator.');
+      await supabase.auth.signOut();
       return false;
     }
+    if (!profile.active) {
+      setLoginError('This account has been disabled. Contact the administrator.');
+      logAction('login_failed', `Login attempt on a disabled account: ${profile.username}`, profile);
+      await supabase.auth.signOut();
+      return false;
+    }
+
     setLoginError('');
-    setCurrentUser(user);
-    logAction('login', 'Logged into the system', user);
+    setCurrentUser(profile);
+    loadUsers();
+    logAction('login', 'Logged into the system', profile);
     return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
     if (currentUser) logAction('logout', 'Logged out of the system', currentUser);
+    await supabase.auth.signOut();
     setCurrentUser(null);
   };
 
-  // Is the current user allowed to issue/create a loan?
-  // Only Admin and an Officer with permission (canIssueLoans) are allowed
   const canIssueLoans = () => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     return currentUser.role === 'officer' && currentUser.canIssueLoans;
   };
 
-  // Only Manager and Admin are allowed to approve/reject loans
   const canApproveLoans = () => {
     if (!currentUser) return false;
     return currentUser.role === 'manager' || currentUser.role === 'admin';
@@ -64,43 +119,55 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => currentUser?.role === 'admin';
 
-  const addUser = (userData) => {
-    const newUser = {
-      id: nextId(users),
-      active: true,
-      canIssueLoans: userData.role === 'officer' ? !!userData.canIssueLoans : userData.role === 'admin',
-      ...userData,
-    };
-    setUsers(prev => [newUser, ...prev]);
-    logAction('user_created', `Added user: ${newUser.username} (${ROLE_LABELS[newUser.role] || newUser.role})`, currentUser);
-    return newUser;
+  const addUser = async () => {
+    throw new Error(
+      'To add a new staff account: create the login in Supabase Dashboard (Authentication -> Add user), then add their profile row in the SQL Editor. In-app account creation is not available yet for security reasons.'
+    );
   };
 
-  const updateUser = (id, updates, silent) => {
+  const updateUser = async (id, updates, silent) => {
     const target = users.find(u => u.id === id);
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...updates } : u)));
+    const payload = {};
+    if (updates.fullName !== undefined) payload.full_name = updates.fullName;
+    if (updates.role !== undefined) payload.role = updates.role;
+    if (updates.canIssueLoans !== undefined) payload.can_issue_loans = updates.canIssueLoans;
+    if (updates.active !== undefined) payload.active = updates.active;
+
+    const { error } = await supabase.from('profiles').update(payload).eq('id', id);
+    if (error) return { success: false, message: error.message };
+
+    await loadUsers();
     if (currentUser?.id === id) {
-      setCurrentUser(prev => ({ ...prev, ...updates }));
+      const profile = await loadProfile(id);
+      setCurrentUser(profile);
     }
     if (target && !silent) logAction('user_updated', `Updated user: ${target.username}`, currentUser);
+    return { success: true };
   };
 
-  const deleteUser = (id) => {
+  const deleteUser = async (id) => {
     const target = users.find(u => u.id === id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-    if (target) logAction('user_deleted', `Deleted user: ${target.username}`, currentUser);
+    const { error } = await supabase.from('profiles').update({ active: false }).eq('id', id);
+    if (error) return { success: false, message: error.message };
+    await loadUsers();
+    if (target) logAction('user_deleted', `Deactivated user: ${target.username}`, currentUser);
+    return { success: true };
   };
 
-  // The user changes their own password
-  const changePassword = (currentPassword, newPassword) => {
+  const changePassword = async (currentPassword, newPassword) => {
     if (!currentUser) return { success: false, message: 'Not logged in' };
-    if (currentUser.password !== currentPassword) {
-      return { success: false, message: 'Current password is incorrect' };
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: 'New password must be at least 6 characters' };
     }
-    if (!newPassword || newPassword.length < 4) {
-      return { success: false, message: 'New password must be at least 4 characters/digits' };
-    }
-    updateUser(currentUser.id, { password: newPassword }, true);
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: usernameToEmail(currentUser.username),
+      password: currentPassword,
+    });
+    if (verifyError) return { success: false, message: 'Current password is incorrect' };
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, message: error.message };
+
     logAction('password_changed', 'Changed their password', currentUser);
     return { success: true, message: 'Password changed successfully' };
   };
@@ -110,6 +177,7 @@ export const AuthProvider = ({ children }) => {
       users,
       currentUser,
       loginError,
+      authLoading,
       login,
       logout,
       canIssueLoans,

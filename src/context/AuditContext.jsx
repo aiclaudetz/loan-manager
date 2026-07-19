@@ -1,8 +1,8 @@
-import React, { useState, useRef, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { supabase } from '../supabaseClient';
 
 const AuditContext = createContext();
 
-// Action display names, for showing on the Audit Log page
 export const ACTION_LABELS = {
   login: 'Logged In',
   login_failed: 'Login Failed',
@@ -27,23 +27,53 @@ export const ACTION_LABELS = {
 
 export const AuditProvider = ({ children }) => {
   const [logs, setLogs] = useState([]);
-  // ID counter that always increases - even after deleting old records (if that gets added later)
-  const idCounter = useRef(1);
 
-  // actor: the current user object (from useAuth -> currentUser), can be null (e.g. a failed login attempt)
-  const logAction = (action, details, actor) => {
+  const loadLogs = async () => {
+    const { data } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+    if (data) {
+      setLogs(data.map(l => ({
+        id: l.id,
+        timestamp: l.timestamp,
+        userId: l.user_id,
+        username: l.username,
+        fullName: l.full_name,
+        role: l.role,
+        action: l.action,
+        details: l.details,
+      })));
+    }
+  };
+
+  useEffect(() => { loadLogs(); }, []);
+
+  // actor: profile object kutoka AuthContext (currentUser), inaweza kuwa null
+  const logAction = async (action, details, actor) => {
     const entry = {
-      id: idCounter.current++,
-      timestamp: new Date().toISOString(),
-      userId: actor?.id ?? null,
+      user_id: actor?.id ?? null,
       username: actor?.username ?? 'Unknown',
-      fullName: actor?.fullName ?? '-',
+      full_name: actor?.fullName ?? '-',
       role: actor?.role ?? '-',
       action,
       details: details || '',
     };
-    setLogs(prev => [entry, ...prev]);
-    return entry;
+    const { data } = await supabase.from('audit_logs').insert(entry).select().single();
+    if (data) {
+      setLogs(prev => [{
+        id: data.id,
+        timestamp: data.timestamp,
+        userId: data.user_id,
+        username: data.username,
+        fullName: data.full_name,
+        role: data.role,
+        action: data.action,
+        details: data.details,
+      }, ...prev]);
+    }
+    return data;
   };
 
   return (

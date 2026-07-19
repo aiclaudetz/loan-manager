@@ -2,12 +2,58 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { getDueDate, isLoanOverdue, getEffectiveStatus, getOverdueDays, getPenaltyAmount, getTotalOwed, getOutstandingPenalty, REMINDER_WINDOW_DAYS } from '../utils/utils';
 import { useAudit } from './AuditContext';
 import { useAuth } from './AuthContext';
+import { supabase } from '../supabaseClient';
 
 const LoanContext = createContext();
 
-// Generate a new ID that won't collide with existing ones, instead of relying on list length
-// (which can cause ID collisions after deleting a record in the middle)
-const nextId = (items) => items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+// ---------- Mappers: DB (snake_case) <-> App (camelCase) ----------
+const mapClient = (c) => ({
+  id: c.id,
+  fullName: c.full_name,
+  phone: c.phone,
+  nationalId: c.national_id,
+  status: c.status,
+  address: c.address,
+  idPhoto: c.id_photo,
+});
+
+const mapLoan = (l, clientName) => ({
+  id: l.id,
+  clientId: l.client_id,
+  clientName: clientName || l.clients?.full_name || '',
+  amount: Number(l.amount),
+  interestRate: Number(l.interest_rate),
+  duration: l.duration,
+  status: l.status,
+  purpose: l.purpose,
+  date: l.date,
+  totalPayable: Number(l.total_payable),
+  paid: Number(l.paid),
+  remaining: Number(l.remaining),
+  penaltyRate: l.penalty_rate !== null ? Number(l.penalty_rate) : undefined,
+  penaltyPaid: Number(l.penalty_paid || 0),
+  approvedBy: l.approved_by,
+  approvedDate: l.approved_date,
+  rejectedBy: l.rejected_by,
+  rejectReason: l.reject_reason,
+  rejectedDate: l.rejected_date,
+  guarantorName: l.guarantor_name,
+  guarantorPhone: l.guarantor_phone,
+  guarantorIdNumber: l.guarantor_id_number,
+  guarantorIdPhoto: l.guarantor_id_photo,
+  collateralItem: l.collateral_item,
+  requestedBy: l.requested_by_name,
+});
+
+const mapPayment = (p) => ({
+  id: p.id,
+  loanId: p.loan_id,
+  amount: Number(p.amount),
+  penaltyAmount: Number(p.penalty_amount || 0),
+  date: p.date,
+  method: p.method,
+  reference: p.reference,
+});
 
 export const LoanProvider = ({ children }) => {
   const [loans, setLoans] = useState([]);
@@ -17,53 +63,48 @@ export const LoanProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const { logAction } = useAudit();
   const { currentUser } = useAuth();
-  // Limit on active (incomplete) loans per client - admin can change this
   const [loanLimitPerClient, setLoanLimitPerClient] = useState(3);
-  // Late penalty rate per day (percentage of remaining amount) - admin can change this
   const [penaltyRatePerDay, setPenaltyRatePerDay] = useState(1);
 
-  // Mock data - in place of an API
+  const refreshAll = async () => {
+    setLoading(true);
+    try {
+      const [clientsRes, loansRes, paymentsRes, settingsRes] = await Promise.all([
+        supabase.from('clients').select('*').order('id'),
+        supabase.from('loans').select('*, clients(full_name)').order('id'),
+        supabase.from('payments').select('*').order('id'),
+        supabase.from('settings').select('*').eq('id', 1).single(),
+      ]);
+      if (clientsRes.error) throw clientsRes.error;
+      if (loansRes.error) throw loansRes.error;
+      if (paymentsRes.error) throw paymentsRes.error;
+
+      setClients(clientsRes.data.map(mapClient));
+      setLoans(loansRes.data.map((l) => mapLoan(l)));
+      setPayments(paymentsRes.data.map(mapPayment));
+      if (settingsRes.data) {
+        setLoanLimitPerClient(settingsRes.data.loan_limit_per_client);
+        setPenaltyRatePerDay(Number(settingsRes.data.penalty_rate_per_day));
+      }
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const mockData = {
-      clients: [
-        { id: 1, fullName: 'John Doe', phone: '0712345678', nationalId: '123456789', status: 'active' },
-        { id: 2, fullName: 'Jane Smith', phone: '0723456789', nationalId: '987654321', status: 'active' },
-        { id: 3, fullName: 'Peter Johnson', phone: '0734567890', nationalId: '456789123', status: 'inactive' },
-        { id: 4, fullName: 'Mary Williams', phone: '0745678901', nationalId: '789123456', status: 'active' },
-      ],
-      loans: [
-        { id: 1, clientId: 1, clientName: 'John Doe', amount: 1000000, interestRate: 5, duration: 30, status: 'active', purpose: 'Business', date: '2026-01-15', totalPayable: 1050000, paid: 300000, remaining: 750000 },
-        { id: 2, clientId: 2, clientName: 'Jane Smith', amount: 500000, interestRate: 4, duration: 15, status: 'active', purpose: 'Education', date: '2026-02-01', totalPayable: 520000, paid: 200000, remaining: 320000 },
-        { id: 3, clientId: 3, clientName: 'Peter Johnson', amount: 2000000, interestRate: 6, duration: 45, status: 'overdue', purpose: 'Construction', date: '2025-11-15', totalPayable: 2120000, paid: 500000, remaining: 1620000 },
-        { id: 4, clientId: 4, clientName: 'Mary Williams', amount: 750000, interestRate: 5, duration: 20, status: 'completed', purpose: 'Medical', date: '2025-12-01', totalPayable: 787500, paid: 787500, remaining: 0 },
-        { id: 5, clientId: 1, clientName: 'John Doe', amount: 1500000, interestRate: 5.5, duration: 30, status: 'pending', purpose: 'Business', date: '2026-03-01', totalPayable: 1582500, paid: 0, remaining: 1582500 },
-      ],
-      payments: [
-        { id: 1, loanId: 1, amount: 300000, date: '2026-01-25', method: 'M-Pesa', reference: 'MP001' },
-        { id: 2, loanId: 2, amount: 200000, date: '2026-02-10', method: 'Cash', reference: 'CS001' },
-        { id: 3, loanId: 3, amount: 500000, date: '2025-12-01', method: 'Bank', reference: 'BK001' },
-        { id: 4, loanId: 4, amount: 787500, date: '2026-01-20', method: 'M-Pesa', reference: 'MP002' },
-      ]
-    };
+    if (currentUser) refreshAll();
+  }, [currentUser]);
 
-    setClients(mockData.clients);
-    setLoans(mockData.loans);
-    setPayments(mockData.payments);
-    setLoading(false);
-  }, []);
-
-  // Calculate a client's loan count and debt directly from actual loans
-  // (instead of maintaining a separate number that could drift out of sync)
   const getClientLoanStats = (clientId) => {
     const clientLoans = loans.filter(l => l.clientId === clientId);
     const totalLoans = clientLoans.length;
-    // Rejected loans aren't counted in the debt because they never became active
     const totalDebt = clientLoans.reduce((sum, l) => sum + (l.status === 'rejected' ? 0 : l.remaining), 0);
     return { totalLoans, totalDebt };
   };
 
-  // Number of a client's loans that are not yet completed (active/pending/overdue)
-  // This is used to warn about the risk of too many loans for a single client
   const getClientActiveLoanCount = (clientId) => {
     return loans.filter(l =>
       l.clientId === clientId && ['active', 'pending', 'overdue'].includes(getEffectiveStatus(l))
@@ -77,20 +118,13 @@ export const LoanProvider = ({ children }) => {
     const overdueLoans = loans.filter(l => getEffectiveStatus(l) === 'overdue').length;
     const recoveredAmount = loans.reduce((sum, l) => sum + l.paid, 0);
     const totalPenalties = loans.reduce((sum, l) => sum + getOutstandingPenalty(l, penaltyRatePerDay), 0);
-
     return { totalLoans, activeLoans, totalAmount, overdueLoans, recoveredAmount, totalPenalties };
   };
 
-  // Late penalty for a single loan, based on the system-wide rate (or that loan's specific rate)
   const getLoanPenalty = (loan) => getPenaltyAmount(loan, penaltyRatePerDay);
-
-  // Penalty not yet collected (after subtracting what's already been paid)
   const getLoanOutstandingPenalty = (loan) => getOutstandingPenalty(loan, penaltyRatePerDay);
-
-  // Total amount owed on the loan including the late penalty
   const getLoanTotalOwed = (loan) => getTotalOwed(loan, penaltyRatePerDay);
 
-  // Get loans that need a reminder: overdue or approaching the deadline within a few days
   const getLoansNeedingReminder = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -105,189 +139,229 @@ export const LoanProvider = ({ children }) => {
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
   };
 
-  const addLoan = (loanData) => {
-    const newLoan = {
-      id: nextId(loans),
-      ...loanData,
+  // ---------- Mutations (async, talk to Supabase, then refresh) ----------
+
+  const addLoan = async (loanData) => {
+    const totalPayable = loanData.amount + (loanData.amount * loanData.interestRate / 100);
+    const row = {
+      client_id: loanData.clientId,
+      amount: loanData.amount,
+      interest_rate: loanData.interestRate,
+      duration: loanData.duration,
+      purpose: loanData.purpose,
       status: 'pending',
+      total_payable: totalPayable,
       paid: 0,
-      remaining: loanData.amount,
-      date: new Date().toISOString().split('T')[0]
+      remaining: totalPayable,
+      date: new Date().toISOString().split('T')[0],
+      guarantor_name: loanData.guarantorName,
+      guarantor_phone: loanData.guarantorPhone,
+      guarantor_id_number: loanData.guarantorIdNumber,
+      guarantor_id_photo: loanData.guarantorIdPhoto,
+      collateral_item: loanData.collateralItem,
+      requested_by_name: loanData.requestedBy,
+      created_by: currentUser?.id,
     };
-    setLoans([newLoan, ...loans]);
-    logAction('loan_created', `Requested a loan of TSh ${Number(newLoan.amount).toLocaleString()} for ${newLoan.clientName}`, currentUser);
-    return newLoan;
+    const { data, error: err } = await supabase.from('loans').insert(row).select().single();
+    if (err) { setError(err.message); return null; }
+    logAction('loan_created', `Requested a loan of TSh ${Number(row.amount).toLocaleString()} for ${loanData.clientName || ''}`, currentUser);
+    await refreshAll();
+    return mapLoan(data);
   };
 
-  // Manager/Admin approves a 'pending' loan - this is when the loan officially starts
-  const approveLoan = (id, approvedBy) => {
+  const approveLoan = async (id, approvedBy) => {
     const loan = loans.find(l => l.id === id);
-    setLoans(prev => prev.map(loan =>
-      loan.id === id && loan.status === 'pending'
-        ? { ...loan, status: 'active', approvedBy, approvedDate: new Date().toISOString().split('T')[0] }
-        : loan
-    ));
+    const { error: err } = await supabase.from('loans')
+      .update({ status: 'active', approved_by: approvedBy, approved_date: new Date().toISOString().split('T')[0] })
+      .eq('id', id).eq('status', 'pending');
+    if (err) { setError(err.message); return; }
     if (loan) logAction('loan_approved', `Approved loan #${id} for ${loan.clientName} (TSh ${Number(loan.amount).toLocaleString()})`, currentUser);
+    await refreshAll();
   };
 
-  // Manager/Admin rejects a 'pending' loan - it never becomes active, it stays 'rejected'
-  const rejectLoan = (id, rejectedBy, reason) => {
+  const rejectLoan = async (id, rejectedBy, reason) => {
     const loan = loans.find(l => l.id === id);
-    setLoans(prev => prev.map(loan =>
-      loan.id === id && loan.status === 'pending'
-        ? { ...loan, status: 'rejected', rejectedBy, rejectReason: reason || '', rejectedDate: new Date().toISOString().split('T')[0] }
-        : loan
-    ));
+    const { error: err } = await supabase.from('loans')
+      .update({ status: 'rejected', rejected_by: rejectedBy, reject_reason: reason || '', rejected_date: new Date().toISOString().split('T')[0] })
+      .eq('id', id).eq('status', 'pending');
+    if (err) { setError(err.message); return; }
     if (loan) logAction('loan_rejected', `Rejected loan #${id} for ${loan.clientName}${reason ? ' - Reason: ' + reason : ''}`, currentUser);
+    await refreshAll();
   };
 
-  const addClient = (clientData) => {
-    const newClient = {
-      id: nextId(clients),
-      ...clientData,
-      status: 'active'
+  const addClient = async (clientData) => {
+    const row = {
+      full_name: clientData.fullName,
+      phone: clientData.phone,
+      national_id: clientData.nationalId,
+      address: clientData.address,
+      id_photo: clientData.idPhoto,
+      status: 'active',
     };
-    setClients([newClient, ...clients]);
-    logAction('client_created', `Added client: ${newClient.fullName}`, currentUser);
-    return newClient;
+    const { data, error: err } = await supabase.from('clients').insert(row).select().single();
+    if (err) { setError(err.message); return null; }
+    logAction('client_created', `Added client: ${row.full_name}`, currentUser);
+    await refreshAll();
+    return mapClient(data);
   };
 
-  const updateClient = (id, updates) => {
+  const updateClient = async (id, updates) => {
     const target = clients.find(c => c.id === id);
-    setClients(prev => prev.map(client =>
-      client.id === id ? { ...client, ...updates } : client
-    ));
+    const row = {};
+    if (updates.fullName !== undefined) row.full_name = updates.fullName;
+    if (updates.phone !== undefined) row.phone = updates.phone;
+    if (updates.nationalId !== undefined) row.national_id = updates.nationalId;
+    if (updates.address !== undefined) row.address = updates.address;
+    if (updates.idPhoto !== undefined) row.id_photo = updates.idPhoto;
+    if (updates.status !== undefined) row.status = updates.status;
+
+    const { error: err } = await supabase.from('clients').update(row).eq('id', id);
+    if (err) { setError(err.message); return; }
     if (target) logAction('client_updated', `Updated client: ${target.fullName}`, currentUser);
+    await refreshAll();
   };
 
-  const deleteClient = (id) => {
+  const deleteClient = async (id) => {
     const target = clients.find(c => c.id === id);
     const hasLoans = loans.some(l => l.clientId === id);
     if (hasLoans) {
       return { success: false, message: 'You cannot delete a client with loans. Delete their loans first.' };
     }
-    setClients(prev => prev.filter(c => c.id !== id));
+    const { error: err } = await supabase.from('clients').delete().eq('id', id);
+    if (err) return { success: false, message: err.message };
     if (target) logAction('client_deleted', `Deleted client: ${target.fullName}`, currentUser);
+    await refreshAll();
     return { success: true };
   };
 
-  const updateLoan = (id, updates) => {
+  const updateLoan = async (id, updates) => {
     const target = loans.find(l => l.id === id);
-    setLoans(prev => prev.map(loan => {
-      if (loan.id !== id) return loan;
-      const amount = updates.amount !== undefined ? updates.amount : loan.amount;
-      const interestRate = updates.interestRate !== undefined ? updates.interestRate : loan.interestRate;
-      const newTotalPayable = amount + (amount * interestRate / 100);
-      const newRemaining = Math.max(0, newTotalPayable - loan.paid);
+    if (!target) return;
+    const amount = updates.amount !== undefined ? updates.amount : target.amount;
+    const interestRate = updates.interestRate !== undefined ? updates.interestRate : target.interestRate;
+    const newTotalPayable = amount + (amount * interestRate / 100);
+    const newRemaining = Math.max(0, newTotalPayable - target.paid);
 
-      return {
-        ...loan,
-        ...updates,
-        amount,
-        interestRate,
-        totalPayable: newTotalPayable,
-        remaining: newRemaining,
-        status: newRemaining <= 0 ? 'completed' : (loan.status === 'completed' ? 'active' : loan.status)
-      };
-    }));
-    if (target) logAction('loan_updated', `Updated loan #${id} for ${target.clientName}`, currentUser);
+    const row = {
+      amount,
+      interest_rate: interestRate,
+      total_payable: newTotalPayable,
+      remaining: newRemaining,
+      status: newRemaining <= 0 ? 'completed' : (target.status === 'completed' ? 'active' : target.status),
+    };
+    if (updates.duration !== undefined) row.duration = updates.duration;
+    if (updates.purpose !== undefined) row.purpose = updates.purpose;
+    if (updates.guarantorName !== undefined) row.guarantor_name = updates.guarantorName;
+    if (updates.guarantorPhone !== undefined) row.guarantor_phone = updates.guarantorPhone;
+    if (updates.guarantorIdNumber !== undefined) row.guarantor_id_number = updates.guarantorIdNumber;
+    if (updates.guarantorIdPhoto !== undefined) row.guarantor_id_photo = updates.guarantorIdPhoto;
+    if (updates.collateralItem !== undefined) row.collateral_item = updates.collateralItem;
+
+    const { error: err } = await supabase.from('loans').update(row).eq('id', id);
+    if (err) { setError(err.message); return; }
+    logAction('loan_updated', `Updated loan #${id} for ${target.clientName}`, currentUser);
+    await refreshAll();
   };
 
-  const deleteLoan = (id) => {
+  const deleteLoan = async (id) => {
     const loan = loans.find(l => l.id === id);
     if (!loan) return;
-
-    setLoans(prev => prev.filter(l => l.id !== id));
-    setPayments(prev => prev.filter(p => p.loanId !== id));
+    const { error: err } = await supabase.from('loans').delete().eq('id', id);
+    if (err) { setError(err.message); return; }
     logAction('loan_deleted', `Deleted loan #${id} for ${loan.clientName}`, currentUser);
+    await refreshAll();
   };
 
-  const updatePayment = (id, updates) => {
+  const updatePayment = async (id, updates) => {
     const oldPayment = payments.find(p => p.id === id);
     if (!oldPayment) return;
+    const loan = loans.find(l => l.id === oldPayment.loanId);
     const newAmount = updates.amount !== undefined ? updates.amount : oldPayment.amount;
+    const newPenaltyAmount = updates.penaltyAmount !== undefined ? updates.penaltyAmount : oldPayment.penaltyAmount;
     const delta = newAmount - oldPayment.amount;
-    const newPenaltyAmount = updates.penaltyAmount !== undefined ? updates.penaltyAmount : (oldPayment.penaltyAmount || 0);
-    const penaltyDelta = newPenaltyAmount - (oldPayment.penaltyAmount || 0);
+    const penaltyDelta = newPenaltyAmount - oldPayment.penaltyAmount;
 
-    setPayments(prev => prev.map(p => p.id === id ? { ...p, ...updates, amount: newAmount, penaltyAmount: newPenaltyAmount } : p));
+    const { error: err1 } = await supabase.from('payments')
+      .update({ amount: newAmount, penalty_amount: newPenaltyAmount, method: updates.method, reference: updates.reference })
+      .eq('id', id);
+    if (err1) { setError(err1.message); return; }
 
-    setLoans(prev => prev.map(loan => {
-      if (loan.id !== oldPayment.loanId) return loan;
+    if (loan) {
       const newPaid = loan.paid + delta;
       const newRemaining = loan.totalPayable - newPaid;
       const newPenaltyPaid = Math.max(0, (loan.penaltyPaid || 0) + penaltyDelta);
-      return {
-        ...loan,
+      await supabase.from('loans').update({
         paid: newPaid,
         remaining: newRemaining,
-        penaltyPaid: newPenaltyPaid,
-        status: newRemaining <= 0 ? 'completed' : (loan.status === 'completed' ? 'active' : loan.status)
-      };
-    }));
+        penalty_paid: newPenaltyPaid,
+        status: newRemaining <= 0 ? 'completed' : (loan.status === 'completed' ? 'active' : loan.status),
+      }).eq('id', loan.id);
+    }
     logAction('payment_updated', `Updated payment #${id} (loan #${oldPayment.loanId}) to TSh ${Number(newAmount).toLocaleString()}`, currentUser);
+    await refreshAll();
   };
 
-  const deletePayment = (id) => {
+  const deletePayment = async (id) => {
     const payment = payments.find(p => p.id === id);
     if (!payment) return;
+    const loan = loans.find(l => l.id === payment.loanId);
 
-    setPayments(prev => prev.filter(p => p.id !== id));
+    const { error: err } = await supabase.from('payments').delete().eq('id', id);
+    if (err) { setError(err.message); return; }
 
-    setLoans(prev => prev.map(loan => {
-      if (loan.id !== payment.loanId) return loan;
+    if (loan) {
       const newPaid = Math.max(0, loan.paid - payment.amount);
       const newRemaining = loan.totalPayable - newPaid;
       const newPenaltyPaid = Math.max(0, (loan.penaltyPaid || 0) - (payment.penaltyAmount || 0));
-      return {
-        ...loan,
+      await supabase.from('loans').update({
         paid: newPaid,
         remaining: newRemaining,
-        penaltyPaid: newPenaltyPaid,
-        status: newRemaining <= 0 ? 'completed' : (loan.status === 'completed' ? 'active' : loan.status)
-      };
-    }));
+        penalty_paid: newPenaltyPaid,
+        status: newRemaining <= 0 ? 'completed' : (loan.status === 'completed' ? 'active' : loan.status),
+      }).eq('id', loan.id);
+    }
     logAction('payment_deleted', `Deleted payment #${id} of TSh ${Number(payment.amount).toLocaleString()} (loan #${payment.loanId})`, currentUser);
+    await refreshAll();
   };
 
-  const addPayment = (paymentData) => {
+  const addPayment = async (paymentData) => {
     const penaltyAmount = paymentData.penaltyAmount || 0;
-    const newPayment = {
-      id: nextId(payments),
-      ...paymentData,
-      penaltyAmount,
-      date: new Date().toISOString().split('T')[0]
+    const row = {
+      loan_id: paymentData.loanId,
+      amount: paymentData.amount,
+      penalty_amount: penaltyAmount,
+      method: paymentData.method,
+      reference: paymentData.reference,
+      date: new Date().toISOString().split('T')[0],
+      recorded_by: currentUser?.id,
     };
-    setPayments(prev => [newPayment, ...prev]);
+    const { data, error: err } = await supabase.from('payments').insert(row).select().single();
+    if (err) { setError(err.message); return null; }
 
-    // Update loan paid amount and accrued penalty
-    setLoans(prev => prev.map(loan => {
-      if (loan.id === paymentData.loanId) {
-        const newPaid = loan.paid + paymentData.amount;
-        const newRemaining = loan.totalPayable - newPaid;
-        return {
-          ...loan,
-          paid: newPaid,
-          remaining: newRemaining,
-          penaltyPaid: (loan.penaltyPaid || 0) + penaltyAmount,
-          status: newRemaining <= 0 ? 'completed' : loan.status
-        };
-      }
-      return loan;
-    }));
-
+    const loan = loans.find(l => l.id === paymentData.loanId);
+    if (loan) {
+      const newPaid = loan.paid + paymentData.amount;
+      const newRemaining = loan.totalPayable - newPaid;
+      await supabase.from('loans').update({
+        paid: newPaid,
+        remaining: newRemaining,
+        penalty_paid: (loan.penaltyPaid || 0) + penaltyAmount,
+        status: newRemaining <= 0 ? 'completed' : loan.status,
+      }).eq('id', loan.id);
+    }
     logAction('payment_added', `Added a payment of TSh ${Number(paymentData.amount).toLocaleString()} to loan #${paymentData.loanId}`, currentUser);
-    return newPayment;
+    await refreshAll();
+    return mapPayment(data);
   };
 
-  // Admin changes the active loan limit per client (and logs it to the audit log)
-  const updateLoanLimit = (value) => {
+  const updateLoanLimit = async (value) => {
+    await supabase.from('settings').update({ loan_limit_per_client: value }).eq('id', 1);
     setLoanLimitPerClient(value);
     logAction('settings_updated', `Changed the loan limit per client to ${value}`, currentUser);
   };
 
-  // Admin changes the daily late penalty rate (and logs it to the audit log)
-  const updatePenaltyRate = (value) => {
+  const updatePenaltyRate = async (value) => {
+    await supabase.from('settings').update({ penalty_rate_per_day: value }).eq('id', 1);
     setPenaltyRatePerDay(value);
     logAction('settings_updated', `Changed the late penalty rate to ${value}% per day`, currentUser);
   };
@@ -299,6 +373,7 @@ export const LoanProvider = ({ children }) => {
       payments,
       loading,
       error,
+      refreshAll,
       getLoanStats,
       getClientLoanStats,
       getClientActiveLoanCount,
