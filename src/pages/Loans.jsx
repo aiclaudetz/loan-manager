@@ -1,15 +1,27 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 import { useAuth } from '../context/AuthContext';
 import LoanCard from '../components/LoanCard';
 
+const VALID_STATUSES = ['all', 'active', 'pending', 'overdue', 'completed', 'rejected'];
+
 const Loans = () => {
   const { loans, getEffectiveStatus } = useLoans();
   const { canIssueLoans } = useAuth();
-  const [filter, setFilter] = useState('all');
+  const [searchParams] = useSearchParams();
+  const statusFromUrl = searchParams.get('status');
+  const [filter, setFilter] = useState(
+    VALID_STATUSES.includes(statusFromUrl) ? statusFromUrl : 'all'
+  );
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (VALID_STATUSES.includes(statusFromUrl)) {
+      setFilter(statusFromUrl);
+    }
+  }, [statusFromUrl]);
 
   const filtered = loans
     .filter(l => filter === 'all' || getEffectiveStatus(l) === filter)

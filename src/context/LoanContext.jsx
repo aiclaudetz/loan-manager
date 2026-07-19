@@ -118,7 +118,9 @@ export const LoanProvider = ({ children }) => {
     const overdueLoans = loans.filter(l => getEffectiveStatus(l) === 'overdue').length;
     const recoveredAmount = loans.reduce((sum, l) => sum + l.paid, 0);
     const totalPenalties = loans.reduce((sum, l) => sum + getOutstandingPenalty(l, penaltyRatePerDay), 0);
-    return { totalLoans, activeLoans, totalAmount, overdueLoans, recoveredAmount, totalPenalties };
+    // Profit = interest earned on loans (total payable minus principal amount)
+    const totalProfit = loans.reduce((sum, l) => sum + (l.totalPayable - l.amount), 0);
+    return { totalLoans, activeLoans, totalAmount, overdueLoans, recoveredAmount, totalPenalties, totalProfit };
   };
 
   const getLoanPenalty = (loan) => getPenaltyAmount(loan, penaltyRatePerDay);

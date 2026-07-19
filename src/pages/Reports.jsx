@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 import { arrayToCSV, downloadCSV, todayStamp } from '../utils/utils';
@@ -80,6 +81,7 @@ const Reports = () => {
     totalAmount: loans.reduce((s, l) => s + l.amount, 0),
     totalPaid: loans.reduce((s, l) => s + l.paid, 0),
     totalRemaining: loans.reduce((s, l) => s + l.remaining, 0),
+    totalProfit: loans.reduce((s, l) => s + (l.totalPayable - l.amount), 0),
     activeClients: clients.filter(c => c.status === 'active').length,
     completedLoans: loans.filter(l => getEffectiveStatus(l) === 'completed').length,
     overdueLoans: loans.filter(l => getEffectiveStatus(l) === 'overdue').length,
@@ -114,34 +116,51 @@ const Reports = () => {
       <h1 style={styles.pageTitle}>Reports</h1>
 
       <div style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <div style={{ ...styles.statIcon, background: '#dbeafe', color: '#1d4ed8' }}>📊</div>
-          <div style={styles.statInfo}>
-            <div style={styles.statLabel}>Total Loans</div>
-            <div style={styles.statNumber}>{stats.totalLoans}</div>
+        <Link to="/loans" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIcon, background: '#dbeafe', color: '#1d4ed8' }}>📊</div>
+            <div style={styles.statInfo}>
+              <div style={styles.statLabel}>Total Loans</div>
+              <div style={styles.statNumber}>{stats.totalLoans}</div>
+            </div>
           </div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={{ ...styles.statIcon, background: '#dcfce7', color: '#16a34a' }}>💰</div>
-          <div style={styles.statInfo}>
-            <div style={styles.statLabel}>Total Amount</div>
-            <div style={styles.statNumber}>TSh {stats.totalAmount.toLocaleString()}</div>
+        </Link>
+        <Link to="/loans" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIcon, background: '#dcfce7', color: '#16a34a' }}>💰</div>
+            <div style={styles.statInfo}>
+              <div style={styles.statLabel}>Total Amount</div>
+              <div style={styles.statNumber}>TSh {stats.totalAmount.toLocaleString()}</div>
+            </div>
           </div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={{ ...styles.statIcon, background: '#fef3c7', color: '#d97706' }}>✅</div>
-          <div style={styles.statInfo}>
-            <div style={styles.statLabel}>Paid</div>
-            <div style={styles.statNumber}>TSh {stats.totalPaid.toLocaleString()}</div>
+        </Link>
+        <Link to="/payments" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIcon, background: '#fef3c7', color: '#d97706' }}>✅</div>
+            <div style={styles.statInfo}>
+              <div style={styles.statLabel}>Paid</div>
+              <div style={styles.statNumber}>TSh {stats.totalPaid.toLocaleString()}</div>
+            </div>
           </div>
-        </div>
-        <div style={styles.statCard}>
-          <div style={{ ...styles.statIcon, background: '#fee2e2', color: '#dc2626' }}>⏳</div>
-          <div style={styles.statInfo}>
-            <div style={styles.statLabel}>Remaining</div>
-            <div style={styles.statNumber}>TSh {stats.totalRemaining.toLocaleString()}</div>
+        </Link>
+        <Link to="/loans?status=active" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIcon, background: '#fee2e2', color: '#dc2626' }}>⏳</div>
+            <div style={styles.statInfo}>
+              <div style={styles.statLabel}>Remaining</div>
+              <div style={styles.statNumber}>TSh {stats.totalRemaining.toLocaleString()}</div>
+            </div>
           </div>
-        </div>
+        </Link>
+        <Link to="/loans" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIcon, background: '#ede9fe', color: '#7c3aed' }}>📈</div>
+            <div style={styles.statInfo}>
+              <div style={styles.statLabel}>Profit</div>
+              <div style={styles.statNumber}>TSh {Math.round(stats.totalProfit).toLocaleString()}</div>
+            </div>
+          </div>
+        </Link>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginTop: '24px' }}>
@@ -169,22 +188,30 @@ const Reports = () => {
         </div>
         <div style={{ padding: '20px 24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px' }}>
-              <div style={{ fontSize: '13px', color: '#64748b' }}>Active Clients</div>
-              <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.activeClients}</div>
-            </div>
-            <div style={{ padding: '16px', background: '#dcfce7', borderRadius: '8px' }}>
-              <div style={{ fontSize: '13px', color: '#166534' }}>Completed Loans</div>
-              <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.completedLoans}</div>
-            </div>
-            <div style={{ padding: '16px', background: '#fee2e2', borderRadius: '8px' }}>
-              <div style={{ fontSize: '13px', color: '#991b1b' }}>Overdue Loans</div>
-              <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.overdueLoans}</div>
-            </div>
-            <div style={{ padding: '16px', background: '#dbeafe', borderRadius: '8px' }}>
-              <div style={{ fontSize: '13px', color: '#1e40af' }}>Total Clients</div>
-              <div style={{ fontSize: '24px', fontWeight: '700' }}>{clients.length}</div>
-            </div>
+            <Link to="/clients" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', cursor: 'pointer' }}>
+                <div style={{ fontSize: '13px', color: '#64748b' }}>Active Clients</div>
+                <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.activeClients}</div>
+              </div>
+            </Link>
+            <Link to="/loans?status=completed" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ padding: '16px', background: '#dcfce7', borderRadius: '8px', cursor: 'pointer' }}>
+                <div style={{ fontSize: '13px', color: '#166534' }}>Completed Loans</div>
+                <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.completedLoans}</div>
+              </div>
+            </Link>
+            <Link to="/loans?status=overdue" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ padding: '16px', background: '#fee2e2', borderRadius: '8px', cursor: 'pointer' }}>
+                <div style={{ fontSize: '13px', color: '#991b1b' }}>Overdue Loans</div>
+                <div style={{ fontSize: '24px', fontWeight: '700' }}>{stats.overdueLoans}</div>
+              </div>
+            </Link>
+            <Link to="/clients" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ padding: '16px', background: '#dbeafe', borderRadius: '8px', cursor: 'pointer' }}>
+                <div style={{ fontSize: '13px', color: '#1e40af' }}>Total Clients</div>
+                <div style={{ fontSize: '24px', fontWeight: '700' }}>{clients.length}</div>
+              </div>
+            </Link>
           </div>
         </div>
       </div>

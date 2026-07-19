@@ -17,14 +17,15 @@ const Dashboard = () => {
   });
 
   const statCards = [
-    { icon: '💰', label: 'Total Loans', value: stats.totalLoans, color: '#dbeafe', iconColor: '#1d4ed8' },
-    { icon: '✅', label: 'Active Loans', value: stats.activeLoans, color: '#dcfce7', iconColor: '#16a34a' },
-    { icon: '⚠️', label: 'Overdue Loans', value: stats.overdueLoans, color: '#fee2e2', iconColor: '#dc2626' },
-    { icon: '📊', label: 'Total Amount', value: `TSh ${stats.totalAmount.toLocaleString()}`, color: '#fef3c7', iconColor: '#d97706' },
+    { icon: '💰', label: 'Total Loans', value: stats.totalLoans, color: '#dbeafe', iconColor: '#1d4ed8', to: '/loans' },
+    { icon: '✅', label: 'Active Loans', value: stats.activeLoans, color: '#dcfce7', iconColor: '#16a34a', to: '/loans?status=active' },
+    { icon: '⚠️', label: 'Overdue Loans', value: stats.overdueLoans, color: '#fee2e2', iconColor: '#dc2626', to: '/loans?status=overdue' },
+    { icon: '📊', label: 'Total Amount', value: `TSh ${stats.totalAmount.toLocaleString()}`, color: '#fef3c7', iconColor: '#d97706', to: '/loans' },
+    { icon: '📈', label: 'Profit', value: `TSh ${Math.round(stats.totalProfit).toLocaleString()}`, color: '#ede9fe', iconColor: '#7c3aed', to: '/reports' },
   ];
 
   if (stats.totalPenalties > 0) {
-    statCards.push({ icon: '⏰', label: 'Total Late Penalties', value: `TSh ${Math.round(stats.totalPenalties).toLocaleString()}`, color: '#fee2e2', iconColor: '#dc2626' });
+    statCards.push({ icon: '⏰', label: 'Total Late Penalties', value: `TSh ${Math.round(stats.totalPenalties).toLocaleString()}`, color: '#fee2e2', iconColor: '#dc2626', to: '/loans?status=overdue' });
   }
 
   return (
@@ -64,15 +65,17 @@ const Dashboard = () => {
 
       <div style={styles.statsGrid}>
         {statCards.map((stat, i) => (
-          <div key={i} style={styles.statCard}>
-            <div style={{ ...styles.statIcon, background: stat.color, color: stat.iconColor }}>
-              {stat.icon}
+          <Link key={i} to={stat.to} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div style={styles.statCard}>
+              <div style={{ ...styles.statIcon, background: stat.color, color: stat.iconColor }}>
+                {stat.icon}
+              </div>
+              <div style={styles.statInfo}>
+                <div style={styles.statLabel}>{stat.label}</div>
+                <div style={styles.statNumber}>{stat.value}</div>
+              </div>
             </div>
-            <div style={styles.statInfo}>
-              <div style={styles.statLabel}>{stat.label}</div>
-              <div style={styles.statNumber}>{stat.value}</div>
-            </div>
-          </div>
+          </Link>
         ))}
       </div>
 
