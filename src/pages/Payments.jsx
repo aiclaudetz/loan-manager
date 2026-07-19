@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 
 const Payments = () => {
+  const navigate = useNavigate();
   const { payments, loans, deletePayment } = useLoans();
 
   const rows = payments.map(p => {
@@ -41,7 +42,7 @@ const Payments = () => {
           </thead>
           <tbody>
             {rows.map((p, i) => (
-              <tr key={p.id}>
+              <tr key={p.id} onClick={() => navigate(`/payments/${p.id}`)} style={{ cursor: 'pointer' }}>
                 <td style={styles.tableTd}>{i + 1}</td>
                 <td style={styles.tableTd}>{p.clientName}</td>
                 <td style={styles.tableTd}>
@@ -57,7 +58,7 @@ const Payments = () => {
                 <td style={styles.tableTd}>
                   <span style={{ ...styles.badge, ...styles.badgeCompleted }}>Paid</span>
                 </td>
-                <td style={styles.tableTd}>
+                <td style={styles.tableTd} onClick={(e) => e.stopPropagation()}>
                   <Link to={`/payments/${p.id}/edit`}>
                     <button style={styles.actionIcon} title="Edit">✏️</button>
                   </Link>

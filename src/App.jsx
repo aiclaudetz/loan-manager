@@ -21,6 +21,7 @@ import LoanDetails from './pages/LoanDetails';
 import EditLoan from './pages/EditLoan';
 import Reminders from './pages/Reminders';
 import Payments from './pages/Payments';
+import PaymentDetails from './pages/PaymentDetails';
 import NewPayment from './pages/NewPayment';
 import EditPayment from './pages/EditPayment';
 import Reports from './pages/Reports';
@@ -70,6 +71,7 @@ const AuthenticatedApp = () => {
           <Route path="/reminders" element={<Reminders />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/payments/new" element={<NewPayment />} />
+          <Route path="/payments/:id" element={<PaymentDetails />} />
           <Route path="/payments/:id/edit" element={<EditPayment />} />
           <Route path="/reports" element={<Reports />} />
           <Route
