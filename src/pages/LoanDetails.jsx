@@ -3,14 +3,16 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 import { useAuth } from '../context/AuthContext';
+import { formatPhoneForWaMe, REMINDER_WINDOW_DAYS } from '../utils/utils';
 
 const LoanDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { loans, clients, getEffectiveStatus, getDueDate, getOverdueDays, getLoanPenalty, getLoanOutstandingPenalty, getLoanTotalOwed, deleteLoan, approveLoan, rejectLoan } = useLoans();
+  const { loans, clients, payments, getEffectiveStatus, getDueDate, getOverdueDays, getLoanPenalty, getLoanOutstandingPenalty, getLoanTotalOwed, deleteLoan, deletePayment, approveLoan, rejectLoan } = useLoans();
   const { currentUser, canApproveLoans } = useAuth();
   const loan = loans.find(l => l.id === parseInt(id));
   const client = loan ? clients.find(c => c.id === loan.clientId) : null;
+  const loanPayments = loan ? payments.filter(p => p.loanId === loan.id).sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
 
   const handleDelete = () => {
     if (window.confirm(`Are you sure you want to delete this loan?`)) {
@@ -30,6 +32,29 @@ const LoanDetails = () => {
     rejectLoan(loan.id, currentUser.username, reason);
   };
 
+  const handleDeletePayment = (paymentId) => {
+    if (window.confirm('Are you sure you want to delete this payment?')) {
+      deletePayment(paymentId);
+    }
+  };
+
+  const buildReminderMessage = (l, daysUntilDue) => {
+    const dueDateStr = getDueDate(l).toLocaleDateString('en-GB');
+    if (daysUntilDue < 0) {
+      return `Hello ${l.clientName}, your loan of TSh ${l.amount.toLocaleString()} has passed its due date (${dueDateStr}). Amount owed: TSh ${l.remaining.toLocaleString()}. Please contact us as soon as possible to settle your debt. Thank you - LoanManager.`;
+    }
+    if (daysUntilDue === 0) {
+      return `Hello ${l.clientName}, reminder: your loan of TSh ${l.amount.toLocaleString()} is due TODAY (${dueDateStr}). Remaining amount: TSh ${l.remaining.toLocaleString()}. Please make your payment. Thank you - LoanManager.`;
+    }
+    return `Hello ${l.clientName}, reminder: your loan of TSh ${l.amount.toLocaleString()} is due by ${dueDateStr} (in ${daysUntilDue} days). Remaining amount: TSh ${l.remaining.toLocaleString()}. Please make your payment on time. Thank you - LoanManager.`;
+  };
+
+  const handleSendReminder = (daysUntilDue) => {
+    const phone = formatPhoneForWaMe(client?.phone);
+    const message = buildReminderMessage(loan, daysUntilDue);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   if (!loan) {
     return (
       <div style={styles.emptyState}>
@@ -45,6 +70,15 @@ const LoanDetails = () => {
 
   const effectiveStatus = getEffectiveStatus(loan);
   const progress = loan.totalPayable > 0 ? (loan.paid / loan.totalPayable) * 100 : 0;
+
+  let daysUntilDue = null;
+  if (effectiveStatus !== 'completed' && effectiveStatus !== 'pending' && effectiveStatus !== 'rejected' && loan.remaining > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = getDueDate(loan);
+    daysUntilDue = Math.round((due - today) / (1000 * 60 * 60 * 24));
+  }
+  const showReminder = daysUntilDue !== null && daysUntilDue <= REMINDER_WINDOW_DAYS;
 
   return (
     <div>
@@ -236,6 +270,66 @@ const LoanDetails = () => {
             )}
           </div>
         )}
+
+        {showReminder && (
+          <div style={{ marginTop: '16px', padding: '12px', background: daysUntilDue < 0 ? '#fef2f2' : '#fffbeb', border: `1px solid ${daysUntilDue < 0 ? '#fecaca' : '#fde68a'}`, borderRadius: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: daysUntilDue < 0 ? '#991b1b' : '#92400e' }}>
+                🔔 {daysUntilDue < 0
+                  ? `This loan is ${Math.abs(daysUntilDue)} day(s) past due`
+                  : daysUntilDue === 0
+                  ? 'This loan is due today'
+                  : `This loan is due in ${daysUntilDue} day(s)`}
+              </div>
+              {client?.phone && (
+                <button onClick={() => handleSendReminder(daysUntilDue)} style={styles.btnSuccess}>
+                  💬 Send Reminder via WhatsApp
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0 }}>Payments ({loanPayments.length})</h3>
+            {loan.remaining > 0 && effectiveStatus !== 'pending' && effectiveStatus !== 'rejected' && (
+              <Link to={`/payments/new?loan=${loan.id}`}>
+                <button style={styles.btnPrimary}>+ Record Payment</button>
+              </Link>
+            )}
+          </div>
+
+          {loanPayments.length === 0 ? (
+            <div style={{ fontSize: '13px', color: '#64748b', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
+              No payments have been recorded for this loan yet.
+            </div>
+          ) : (
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+              {loanPayments.map((p, idx) => (
+                <div key={p.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 16px', borderTop: idx === 0 ? 'none' : '1px solid #e2e8f0',
+                  background: '#fff'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: '600' }}>TSh {p.amount.toLocaleString()}</div>
+                    <div style={{ fontSize: '13px', color: '#64748b' }}>
+                      {p.date} · {p.method || '—'}{p.reference ? ` · Ref: ${p.reference}` : ''}
+                      {p.penaltyAmount > 0 && ` · Penalty paid: TSh ${p.penaltyAmount.toLocaleString()}`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Link to={`/payments/${p.id}/edit`}>
+                      <button style={styles.btnSecondary}>✏️ Edit</button>
+                    </Link>
+                    <button onClick={() => handleDeletePayment(p.id)} style={styles.btnDanger}>🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

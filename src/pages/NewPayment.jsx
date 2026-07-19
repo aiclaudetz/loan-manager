@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 
 const NewPayment = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedLoanId = searchParams.get('loan') || '';
   const { loans, addPayment, getEffectiveStatus, getLoanOutstandingPenalty } = useLoans();
-  const [form, setForm] = useState({ loanId: '', amount: '', method: 'M-Pesa', reference: '', penaltyAmount: '' });
+  const [form, setForm] = useState({ loanId: preselectedLoanId, amount: '', method: 'M-Pesa', reference: '', penaltyAmount: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -43,7 +45,7 @@ const NewPayment = () => {
       penaltyAmount: penaltyToCollect
     });
     setSuccess('Payment recorded successfully!');
-    setTimeout(() => navigate('/payments'), 1500);
+    setTimeout(() => navigate(preselectedLoanId ? `/loans/${preselectedLoanId}` : '/payments'), 1500);
   };
 
   return (
