@@ -118,8 +118,12 @@ export const LoanProvider = ({ children }) => {
     const overdueLoans = loans.filter(l => getEffectiveStatus(l) === 'overdue').length;
     const recoveredAmount = loans.reduce((sum, l) => sum + l.paid, 0);
     const totalPenalties = loans.reduce((sum, l) => sum + getOutstandingPenalty(l, penaltyRatePerDay), 0);
-    // Profit = interest earned on loans (total payable minus principal amount)
-    const totalProfit = loans.reduce((sum, l) => sum + (l.totalPayable - l.amount), 0);
+    // Profit = interest earned on loans (total payable minus principal amount).
+    // Only counted for loans that were actually disbursed (i.e. not pending approval or rejected) —
+    // no interest accrues on money that was never lent out.
+    const totalProfit = loans
+      .filter(l => l.status !== 'pending' && l.status !== 'rejected')
+      .reduce((sum, l) => sum + (l.totalPayable - l.amount), 0);
     return { totalLoans, activeLoans, totalAmount, overdueLoans, recoveredAmount, totalPenalties, totalProfit };
   };
 
@@ -290,7 +294,7 @@ export const LoanProvider = ({ children }) => {
 
     if (loan) {
       const newPaid = loan.paid + delta;
-      const newRemaining = loan.totalPayable - newPaid;
+      const newRemaining = Math.max(0, loan.totalPayable - newPaid);
       const newPenaltyPaid = Math.max(0, (loan.penaltyPaid || 0) + penaltyDelta);
       await supabase.from('loans').update({
         paid: newPaid,
@@ -313,7 +317,7 @@ export const LoanProvider = ({ children }) => {
 
     if (loan) {
       const newPaid = Math.max(0, loan.paid - payment.amount);
-      const newRemaining = loan.totalPayable - newPaid;
+      const newRemaining = Math.max(0, loan.totalPayable - newPaid);
       const newPenaltyPaid = Math.max(0, (loan.penaltyPaid || 0) - (payment.penaltyAmount || 0));
       await supabase.from('loans').update({
         paid: newPaid,
@@ -343,7 +347,7 @@ export const LoanProvider = ({ children }) => {
     const loan = loans.find(l => l.id === paymentData.loanId);
     if (loan) {
       const newPaid = loan.paid + paymentData.amount;
-      const newRemaining = loan.totalPayable - newPaid;
+      const newRemaining = Math.max(0, loan.totalPayable - newPaid);
       await supabase.from('loans').update({
         paid: newPaid,
         remaining: newRemaining,

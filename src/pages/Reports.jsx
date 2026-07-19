@@ -81,7 +81,9 @@ const Reports = () => {
     totalAmount: loans.reduce((s, l) => s + l.amount, 0),
     totalPaid: loans.reduce((s, l) => s + l.paid, 0),
     totalRemaining: loans.reduce((s, l) => s + l.remaining, 0),
-    totalProfit: loans.reduce((s, l) => s + (l.totalPayable - l.amount), 0),
+    totalProfit: loans
+      .filter(l => l.status !== 'pending' && l.status !== 'rejected')
+      .reduce((s, l) => s + (l.totalPayable - l.amount), 0),
     activeClients: clients.filter(c => c.status === 'active').length,
     completedLoans: loans.filter(l => getEffectiveStatus(l) === 'completed').length,
     overdueLoans: loans.filter(l => getEffectiveStatus(l) === 'overdue').length,
