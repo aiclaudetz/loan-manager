@@ -13,6 +13,7 @@ import Users from './pages/Users';
 import AuditLog from './pages/AuditLog';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
+import ClientDetails from './pages/ClientDetails';
 import NewClient from './pages/NewClient';
 import EditClient from './pages/EditClient';
 import Loans from './pages/Loans';
@@ -63,6 +64,7 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/clients/new" element={<NewClient />} />
+          <Route path="/clients/:id" element={<ClientDetails />} />
           <Route path="/clients/:id/edit" element={<EditClient />} />
           <Route path="/loans" element={<Loans />} />
           <Route path="/loans/new" element={<NewLoan />} />

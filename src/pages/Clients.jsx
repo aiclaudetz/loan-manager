@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 
 const Clients = () => {
+  const navigate = useNavigate();
   const { clients, deleteClient, getClientLoanStats } = useLoans();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -59,7 +60,7 @@ const Clients = () => {
             {filtered.map((client, i) => {
               const { totalLoans, totalDebt } = getClientLoanStats(client.id);
               return (
-              <tr key={client.id}>
+              <tr key={client.id} onClick={() => navigate(`/clients/${client.id}`)} style={{ cursor: 'pointer' }}>
                 <td style={styles.tableTd}>{i + 1}</td>
                 <td style={styles.tableTd}>{client.fullName}</td>
                 <td style={styles.tableTd}>{client.phone}</td>
@@ -78,7 +79,7 @@ const Clients = () => {
                     {client.status === 'active' ? 'Active' : 'Inactive'}
                   </span>
                 </td>
-                <td style={styles.tableTd}>
+                <td style={styles.tableTd} onClick={(e) => e.stopPropagation()}>
                   <Link to={`/clients/${client.id}/edit`}>
                     <button style={styles.actionIcon} title="Edit">✏️</button>
                   </Link>
