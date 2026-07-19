@@ -212,6 +212,7 @@ const Users = () => {
         <div style={styles.tableHeader}>
           <h3>User List</h3>
         </div>
+        <div style={styles.tableScroll}>
         <table style={styles.table}>
           <thead style={styles.tableHead}>
             <tr>
@@ -268,6 +269,7 @@ const Users = () => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

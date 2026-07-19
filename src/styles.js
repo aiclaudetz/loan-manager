@@ -11,10 +11,14 @@ const styles = {
   },
   mainWrapper: {
     display: 'flex',
-    marginTop: '70px'
+    marginTop: '70px',
+    width: '100%',
+    maxWidth: '100vw',
+    overflowX: 'hidden'
   },
   contentArea: {
     flex: 1,
+    minWidth: 0, // allows flex child to shrink below its content's natural width
     padding: '24px',
     transition: 'all 0.3s ease',
     marginLeft: '0'
@@ -24,6 +28,20 @@ const styles = {
   },
   contentCollapsed: {
     marginLeft: '70px'
+  },
+  contentMobile: {
+    marginLeft: 0,
+    padding: '16px'
+  },
+  // Semi-transparent overlay shown behind the sidebar drawer on mobile
+  sidebarBackdrop: {
+    position: 'fixed',
+    top: '70px',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(15, 23, 42, 0.45)',
+    zIndex: 998
   },
   
   // Navbar
@@ -41,10 +59,14 @@ const styles = {
     padding: '0 24px',
     zIndex: 1000
   },
+  navbarMobile: {
+    padding: '0 12px'
+  },
   navbarLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px'
+    gap: '16px',
+    minWidth: 0
   },
   menuBtn: {
     background: 'none',
@@ -60,7 +82,11 @@ const styles = {
     textDecoration: 'none',
     fontSize: '20px',
     fontWeight: '700',
-    color: '#2563eb'
+    color: '#2563eb',
+    whiteSpace: 'nowrap'
+  },
+  brandMobile: {
+    fontSize: '16px'
   },
   brandIcon: {
     fontSize: '28px'
@@ -73,6 +99,7 @@ const styles = {
     padding: '8px 14px',
     gap: '8px',
     flex: 1,
+    minWidth: 0,
     maxWidth: '500px',
     margin: '0 24px'
   },
@@ -114,6 +141,18 @@ const styles = {
   },
   sidebarClosed: {
     width: '70px'
+  },
+  // Mobile: sidebar is a full-width drawer that slides in/out over the
+  // content (instead of shrinking to an icon rail like on desktop).
+  sidebarMobile: {
+    width: '250px',
+    transform: 'translateX(0)',
+    boxShadow: '4px 0 16px rgba(0,0,0,0.15)'
+  },
+  sidebarMobileClosed: {
+    width: '250px',
+    transform: 'translateX(-100%)',
+    boxShadow: 'none'
   },
   sidebarNav: {
     padding: '16px 0'
@@ -200,10 +239,20 @@ const styles = {
     borderBottom: '1px solid #e2e8f0',
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px'
+  },
+  // Wraps the raw <table> so it scrolls sideways on narrow screens
+  // instead of squeezing every column unreadably thin.
+  tableScroll: {
+    width: '100%',
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch'
   },
   table: {
     width: '100%',
+    minWidth: '640px', // forces horizontal scroll instead of column-crushing on phones
     borderCollapse: 'collapse'
   },
   tableHead: {
@@ -280,11 +329,17 @@ const styles = {
     borderRadius: '12px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     maxWidth: '800px',
+    width: '100%',
     margin: '0 auto'
+  },
+  formContainerMobile: {
+    padding: '20px 16px'
   },
   formGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    // auto-fit + minmax naturally collapses to a single column once the
+    // container is too narrow for two 240px columns — no JS needed.
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
     gap: '20px'
   },
   formGroup: {
@@ -321,7 +376,8 @@ const styles = {
     justifyContent: 'flex-end',
     marginTop: '24px',
     paddingTop: '24px',
-    borderTop: '1px solid #e2e8f0'
+    borderTop: '1px solid #e2e8f0',
+    flexWrap: 'wrap'
   },
   
   // Status Badge
@@ -426,7 +482,9 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '24px'
+    marginBottom: '24px',
+    flexWrap: 'wrap',
+    gap: '12px'
   },
   
   // Action Icons

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { LoanProvider } from './context/LoanContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuditProvider } from './context/AuditContext';
+import { useIsMobile } from './hooks/useIsMobile';
 import styles from './styles';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -28,14 +29,22 @@ import EditPayment from './pages/EditPayment';
 import Reports from './pages/Reports';
 
 // Page layout with Navbar + Sidebar (used after logging in)
-const AppLayout = ({ children, sidebarOpen, setSidebarOpen }) => (
+const AppLayout = ({ children, sidebarOpen, setSidebarOpen, isMobile }) => (
   <div style={styles.app}>
-    <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+    <Navbar toggleSidebar={() => setSidebarOpen(!sidebarOpen)} isMobile={isMobile} />
     <div style={styles.mainWrapper}>
-      <Sidebar isOpen={sidebarOpen} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        isMobile={isMobile}
+        onNavigate={() => isMobile && setSidebarOpen(false)}
+      />
+      {/* On mobile the sidebar overlays the content, so tapping outside it closes it */}
+      {isMobile && sidebarOpen && (
+        <div style={styles.sidebarBackdrop} onClick={() => setSidebarOpen(false)} />
+      )}
       <div style={{
         ...styles.contentArea,
-        ...(sidebarOpen ? styles.contentExpanded : styles.contentCollapsed)
+        ...(isMobile ? styles.contentMobile : (sidebarOpen ? styles.contentExpanded : styles.contentCollapsed))
       }}>
         {children}
       </div>
@@ -44,8 +53,15 @@ const AppLayout = ({ children, sidebarOpen, setSidebarOpen }) => (
 );
 
 const AuthenticatedApp = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 900 : true);
   const { currentUser } = useAuth();
+  const location = useLocation();
+
+  // Close the drawer automatically after navigating to a new page on mobile
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false);
+  }, [location.pathname, isMobile]);
 
   if (!currentUser) {
     return (
@@ -57,7 +73,7 @@ const AuthenticatedApp = () => {
 
   return (
     <LoanProvider>
-      <AppLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+      <AppLayout sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} isMobile={isMobile}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/change-password" element={<ChangePassword />} />

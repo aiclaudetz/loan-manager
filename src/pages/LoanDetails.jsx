@@ -102,7 +102,7 @@ const LoanDetails = () => {
       </div>
 
       <div style={styles.formContainer}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
           <div>
             <div style={{ fontSize: '13px', color: '#64748b' }}>Client</div>
             <div style={{ fontSize: '18px', fontWeight: '600' }}>{loan.clientName}</div>
@@ -175,7 +175,7 @@ const LoanDetails = () => {
             <div style={{ fontSize: '13px', color: '#991b1b', fontWeight: '600', marginBottom: '8px' }}>
               ⏰ Late Penalty
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
               <div>
                 <div style={{ fontSize: '13px', color: '#64748b' }}>Overdue Days</div>
                 <div style={{ fontWeight: '600' }}>{getOverdueDays(loan)} days</div>
@@ -209,7 +209,7 @@ const LoanDetails = () => {
             <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: '600' }}>
               Guarantor Information
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
               {loan.guarantorName && (
                 <div>
                   <div style={{ fontSize: '13px', color: '#64748b' }}>Guarantor Name</div>

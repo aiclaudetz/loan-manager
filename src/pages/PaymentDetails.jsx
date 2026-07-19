@@ -46,7 +46,7 @@ const PaymentDetails = () => {
       </div>
 
       <div style={styles.formContainer}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
           <div>
             <div style={{ fontSize: '13px', color: '#64748b' }}>Client</div>
             <div style={{ fontSize: '18px', fontWeight: '600' }}>
@@ -88,7 +88,7 @@ const PaymentDetails = () => {
             <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: '600' }}>
               Related Loan
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
               <div>
                 <div style={{ fontSize: '13px', color: '#64748b' }}>Loan Amount</div>
                 <div style={{ fontWeight: '600' }}>TSh {loan.amount.toLocaleString()}</div>

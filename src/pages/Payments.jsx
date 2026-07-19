@@ -28,6 +28,7 @@ const Payments = () => {
       </div>
 
       <div style={styles.tableContainer}>
+        <div style={styles.tableScroll}>
         <table style={styles.table}>
           <thead style={styles.tableHead}>
             <tr>
@@ -75,6 +76,7 @@ const Payments = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

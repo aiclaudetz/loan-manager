@@ -1,0 +1,27 @@
+/* Global reset — makes width/padding math predictable so inputs, cards,
+   and containers never overflow the viewport on small screens. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden; /* belt-and-braces: prevents sideways scroll/jitter on phones */
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+input, select, textarea, button {
+  max-width: 100%;
+  font-family: inherit;
+}
+
+img {
+  max-width: 100%;
+}

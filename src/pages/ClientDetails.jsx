@@ -25,9 +25,11 @@ const ClientDetails = () => {
     );
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!window.confirm(`Are you sure you want to delete client "${client.fullName}"?`)) return;
-    const result = deleteClient(client.id);
+    // deleteClient talks to Supabase and is async — must be awaited, otherwise
+    // `result` would be a pending Promise and `result.success` would always be undefined.
+    const result = await deleteClient(client.id);
     if (!result.success) {
       alert(result.message);
       return;
@@ -61,7 +63,7 @@ const ClientDetails = () => {
       </div>
 
       <div style={styles.formContainer}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
           <div>
             <div style={{ fontSize: '13px', color: '#64748b' }}>Full Name</div>
             <div style={{ fontSize: '18px', fontWeight: '600' }}>{client.fullName}</div>

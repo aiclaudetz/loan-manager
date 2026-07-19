@@ -4,7 +4,7 @@ import styles from '../styles';
 import { useLoans } from '../context/LoanContext';
 import { useAuth } from '../context/AuthContext';
 
-const Sidebar = ({ isOpen }) => {
+const Sidebar = ({ isOpen, isMobile, onNavigate }) => {
   const { getLoansNeedingReminder, loans } = useLoans();
   const { canApproveLoans, isAdmin } = useAuth();
   const reminderCount = getLoansNeedingReminder().length;
@@ -21,21 +21,29 @@ const Sidebar = ({ isOpen }) => {
     ...(isAdmin() ? [{ path: '/users', icon: '🛠️', label: 'Users' }] : []),
   ];
 
+  // On mobile the sidebar is always full-width, either off-screen or slid in.
+  // On desktop it stays as the icon-rail-that-expands behavior it always had.
+  const wrapperStyle = isMobile
+    ? { ...styles.sidebar, ...(isOpen ? styles.sidebarMobile : styles.sidebarMobileClosed) }
+    : { ...styles.sidebar, ...(isOpen ? {} : styles.sidebarClosed) };
+  const showLabels = isMobile ? isOpen : isOpen;
+
   return (
-    <div style={{ ...styles.sidebar, ...(isOpen ? {} : styles.sidebarClosed) }}>
+    <div style={wrapperStyle}>
       <nav style={styles.sidebarNav}>
         {items.map(item => (
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onNavigate}
             style={({ isActive }) => ({
               ...styles.sidebarLink,
               ...(isActive ? styles.sidebarLinkActive : {})
             })}
           >
             <span style={styles.sidebarIcon}>{item.icon}</span>
-            {isOpen && <span style={{ flex: 1 }}>{item.label}</span>}
-            {isOpen && !!item.badge && (
+            {showLabels && <span style={{ flex: 1 }}>{item.label}</span>}
+            {showLabels && !!item.badge && (
               <span style={{
                 background: '#dc2626', color: 'white', borderRadius: '999px',
                 fontSize: '11px', padding: '2px 7px', fontWeight: 700

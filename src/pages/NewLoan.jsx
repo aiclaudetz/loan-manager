@@ -26,6 +26,7 @@ const NewLoan = () => {
   });
   const [error, setError] = useState('');
   const [confirmRisk, setConfirmRisk] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const activeLoanCount = form.clientId ? getClientActiveLoanCount(parseInt(form.clientId)) : 0;
   const overLimit = activeLoanCount >= loanLimitPerClient;
@@ -42,7 +43,7 @@ const NewLoan = () => {
     return total / duration;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -100,37 +101,52 @@ const NewLoan = () => {
       return;
     }
 
-    let clientId, clientName;
-    if (isNewClient) {
-      const created = addClient(newClient);
-      clientId = created.id;
-      clientName = created.fullName;
-    } else {
-      const client = clients.find(c => c.id === parseInt(form.clientId));
-      clientId = parseInt(form.clientId);
-      clientName = client ? client.fullName : '';
+    setSubmitting(true);
+    try {
+      let clientId, clientName;
+      if (isNewClient) {
+        // addClient talks to Supabase and is async — must be awaited, otherwise
+        // `created` would be a pending Promise instead of the actual client row.
+        const created = await addClient(newClient);
+        if (!created) {
+          setError('Failed to create the new client. Please try again.');
+          return;
+        }
+        clientId = created.id;
+        clientName = created.fullName;
+      } else {
+        const client = clients.find(c => c.id === parseInt(form.clientId));
+        clientId = parseInt(form.clientId);
+        clientName = client ? client.fullName : '';
+      }
+
+      const loanData = {
+        clientId,
+        clientName,
+        amount: parseFloat(form.amount),
+        interestRate: parseFloat(form.interestRate),
+        duration: parseInt(form.duration),
+        purpose: form.purpose,
+        guarantorName: form.guarantorName,
+        guarantorPhone: form.guarantorPhone,
+        guarantorIdNumber: form.guarantorIdNumber,
+        guarantorIdPhoto: form.guarantorIdPhoto,
+        collateralItem: form.collateralItem,
+        totalPayable: calculateTotal(),
+        paid: 0,
+        remaining: calculateTotal(),
+        requestedBy: currentUser.username
+      };
+
+      const created = await addLoan(loanData);
+      if (!created) {
+        setError('Failed to create the loan. Please try again.');
+        return;
+      }
+      navigate('/loans');
+    } finally {
+      setSubmitting(false);
     }
-
-    const loanData = {
-      clientId,
-      clientName,
-      amount: parseFloat(form.amount),
-      interestRate: parseFloat(form.interestRate),
-      duration: parseInt(form.duration),
-      purpose: form.purpose,
-      guarantorName: form.guarantorName,
-      guarantorPhone: form.guarantorPhone,
-      guarantorIdNumber: form.guarantorIdNumber,
-      guarantorIdPhoto: form.guarantorIdPhoto,
-      collateralItem: form.collateralItem,
-      totalPayable: calculateTotal(),
-      paid: 0,
-      remaining: calculateTotal(),
-      requestedBy: currentUser.username
-    };
-
-    addLoan(loanData);
-    navigate('/loans');
   };
 
   if (!canIssueLoans()) {
@@ -381,11 +397,11 @@ const NewLoan = () => {
         </div>
 
         <div style={styles.formActions}>
-          <button type="button" onClick={() => navigate('/loans')} style={styles.btnSecondary}>
+          <button type="button" onClick={() => navigate('/loans')} style={styles.btnSecondary} disabled={submitting}>
             Cancel
           </button>
-          <button type="submit" style={styles.btnPrimary}>
-            Submit for Manager Approval
+          <button type="submit" style={styles.btnPrimary} disabled={submitting}>
+            {submitting ? 'Submitting...' : 'Submit for Manager Approval'}
           </button>
         </div>
       </form>

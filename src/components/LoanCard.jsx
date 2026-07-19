@@ -54,10 +54,12 @@ const LoanCard = ({ loan, showActions }) => {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: '12px',
       borderLeft: effectiveStatus === 'overdue' ? '4px solid #dc2626' : 'none'
     }}>
-      <div>
-        <div style={{ fontWeight: '600' }}>{loan.clientName}</div>
+      <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+        <div style={{ fontWeight: '600', overflowWrap: 'break-word' }}>{loan.clientName}</div>
         <div style={{ fontSize: '14px', color: '#64748b' }}>
           TSh {loan.amount.toLocaleString()} • {loan.duration} days
         </div>
@@ -73,7 +75,7 @@ const LoanCard = ({ loan, showActions }) => {
           </div>
         )}
       </div>
-      <div style={{ textAlign: 'right' }}>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <span style={{ ...styles.badge, ...getStatusStyle() }}>
           {effectiveStatus === 'active' ? 'Active' :
            effectiveStatus === 'completed' ? 'Completed' :

@@ -8,9 +8,11 @@ const Clients = () => {
   const { clients, deleteClient, getClientLoanStats } = useLoans();
   const [searchTerm, setSearchTerm] = useState('');
 
-  const handleDelete = (client) => {
+  const handleDelete = async (client) => {
     if (!window.confirm(`Are you sure you want to delete client "${client.fullName}"?`)) return;
-    const result = deleteClient(client.id);
+    // deleteClient talks to Supabase and is async — must be awaited, otherwise
+    // `result` would be a pending Promise and `result.success` would always be undefined.
+    const result = await deleteClient(client.id);
     if (!result.success) {
       alert(result.message);
     }
@@ -42,6 +44,7 @@ const Clients = () => {
       </div>
 
       <div style={styles.tableContainer}>
+        <div style={styles.tableScroll}>
         <table style={styles.table}>
           <thead style={styles.tableHead}>
             <tr>
@@ -97,6 +100,7 @@ const Clients = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

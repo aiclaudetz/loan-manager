@@ -91,6 +91,7 @@ const AuditLog = () => {
       </div>
 
       <div style={styles.tableContainer}>
+        <div style={styles.tableScroll}>
         <table style={styles.table}>
           <thead style={styles.tableHead}>
             <tr>
@@ -130,6 +131,7 @@ const AuditLog = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
