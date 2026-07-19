@@ -28,7 +28,7 @@ const Users = () => {
     updatePenaltyRate(value);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -48,15 +48,19 @@ const Users = () => {
       setError('This username is already taken');
       return;
     }
-    addUser({
-      username: form.username.trim(),
-      password: form.password,
-      fullName: form.fullName,
-      role: form.role,
-      canIssueLoans: form.role === 'officer' ? form.canIssueLoans : form.role === 'admin'
-    });
-    setSuccess(`Account "${form.username}" has been created`);
-    setForm(emptyForm);
+    try {
+      await addUser({
+        username: form.username.trim(),
+        password: form.password,
+        fullName: form.fullName,
+        role: form.role,
+        canIssueLoans: form.role === 'officer' ? form.canIssueLoans : form.role === 'admin'
+      });
+      setSuccess(`Account "${form.username}" has been created`);
+      setForm(emptyForm);
+    } catch (err) {
+      setError(err.message || 'Failed to create the account');
+    }
   };
 
   const togglePermission = (user) => {

@@ -119,10 +119,29 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => currentUser?.role === 'admin';
 
-  const addUser = async () => {
-    throw new Error(
-      'To add a new staff account: create the login in Supabase Dashboard (Authentication -> Add user), then add their profile row in the SQL Editor. In-app account creation is not available yet for security reasons.'
-    );
+  const addUser = async (userData) => {
+    const { data, error: err } = await supabase.functions.invoke('create-user', {
+      body: {
+        username: userData.username,
+        password: userData.password,
+        fullName: userData.fullName,
+        role: userData.role,
+        canIssueLoans: userData.canIssueLoans,
+      },
+    });
+    if (err) {
+      let message = err.message;
+      try {
+        const body = await err.context.json();
+        if (body?.error) message = body.error;
+      } catch (_) { /* ignore parse issues */ }
+      throw new Error(message);
+    }
+    if (data?.error) throw new Error(data.error);
+
+    logAction('user_created', `Added a new user: ${userData.username} (${userData.role})`, currentUser);
+    await loadUsers();
+    return data;
   };
 
   const updateUser = async (id, updates, silent) => {
