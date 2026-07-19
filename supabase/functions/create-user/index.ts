@@ -37,10 +37,21 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // Confirm the caller is an admin
-    const { data: callerProfile } = await admin
+    const { data: callerProfile, error: profileFetchErr } = await admin
       .from('profiles').select('role').eq('id', caller.id).single();
-    if (!callerProfile || callerProfile.role !== 'admin') {
-      return new Response(JSON.stringify({ error: 'Only an admin can create new users' }), {
+
+    if (profileFetchErr) {
+      return new Response(JSON.stringify({ error: `Profile lookup failed: ${profileFetchErr.message}` }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!callerProfile) {
+      return new Response(JSON.stringify({ error: `No profile row found for user ${caller.id}` }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (callerProfile.role !== 'admin') {
+      return new Response(JSON.stringify({ error: `Caller role is "${callerProfile.role}", not admin` }), {
         status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
