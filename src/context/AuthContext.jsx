@@ -166,10 +166,40 @@ export const AuthProvider = ({ children }) => {
 
   const deleteUser = async (id) => {
     const target = users.find(u => u.id === id);
-    const { error } = await supabase.from('profiles').update({ active: false }).eq('id', id);
-    if (error) return { success: false, message: error.message };
+    const { data, error: err } = await supabase.functions.invoke('delete-user', {
+      body: { userId: id },
+    });
+    if (err) {
+      let message = err.message;
+      try {
+        const body = await err.context.json();
+        if (body?.error) message = body.error;
+      } catch (_) { /* ignore */ }
+      return { success: false, message };
+    }
+    if (data?.error) return { success: false, message: data.error };
+
     await loadUsers();
-    if (target) logAction('user_deleted', `Deactivated user: ${target.username}`, currentUser);
+    if (target) logAction('user_deleted', `Deleted user: ${target.username}`, currentUser);
+    return { success: true };
+  };
+
+  const resetUserPassword = async (id, newPassword) => {
+    const target = users.find(u => u.id === id);
+    const { data, error: err } = await supabase.functions.invoke('reset-user-password', {
+      body: { userId: id, newPassword },
+    });
+    if (err) {
+      let message = err.message;
+      try {
+        const body = await err.context.json();
+        if (body?.error) message = body.error;
+      } catch (_) { /* ignore */ }
+      return { success: false, message };
+    }
+    if (data?.error) return { success: false, message: data.error };
+
+    if (target) logAction('user_updated', `Reset the password for user: ${target.username}`, currentUser);
     return { success: true };
   };
 
@@ -205,6 +235,7 @@ export const AuthProvider = ({ children }) => {
       addUser,
       updateUser,
       deleteUser,
+      resetUserPassword,
       changePassword,
     }}>
       {children}

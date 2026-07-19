@@ -6,7 +6,7 @@ import { useLoans } from '../context/LoanContext';
 const emptyForm = { username: '', password: '', fullName: '', role: 'officer', canIssueLoans: true };
 
 const Users = () => {
-  const { users, currentUser, addUser, updateUser, deleteUser } = useAuth();
+  const { users, currentUser, addUser, updateUser, deleteUser, resetUserPassword } = useAuth();
   const { loanLimitPerClient, updateLoanLimit, penaltyRatePerDay, updatePenaltyRate } = useLoans();
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -71,10 +71,24 @@ const Users = () => {
     updateUser(user.id, { active: !user.active });
   };
 
-  const handleDelete = (user) => {
+  const handleDelete = async (user) => {
     if (user.id === currentUser.id) return;
-    if (window.confirm(`Are you sure you want to delete the account "${user.username}"?`)) {
-      deleteUser(user.id);
+    if (window.confirm(`Are you sure you want to permanently delete the account "${user.username}"? This cannot be undone.`)) {
+      const result = await deleteUser(user.id);
+      if (!result.success) {
+        alert(result.message || 'Failed to delete the account');
+      }
+    }
+  };
+
+  const handleResetPassword = async (user) => {
+    const newPassword = window.prompt(`Enter a new password for "${user.username}" (at least 6 characters):`);
+    if (!newPassword) return;
+    const result = await resetUserPassword(user.id, newPassword);
+    if (result.success) {
+      alert(`Password for "${user.username}" has been changed.`);
+    } else {
+      alert(result.message || 'Failed to reset the password');
     }
   };
 
@@ -245,6 +259,7 @@ const Users = () => {
                   </button>
                 </td>
                 <td style={styles.tableTd}>
+                  <button style={styles.actionIcon} title="Reset Password" onClick={() => handleResetPassword(user)}>🔑</button>
                   {user.id !== currentUser.id && (
                     <button style={styles.actionIcon} title="Delete" onClick={() => handleDelete(user)}>🗑️</button>
                   )}
